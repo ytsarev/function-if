@@ -1,26 +1,8 @@
 # function-if
 
-A [Crossplane] Composition Function template, for Go.
+A simple [Crossplane] Composition Function implementing If conditional
 
-## What is this?
-
-This is a template for a [Composition Function][function-design].
-
-Composition Functions let you extend Crossplane with new ways to 'do
-Composition' - i.e. new ways to produce composed resources given a claim or XR.
-You use Composition Functions instead of the `resources` array of templates.
-
-This template creates a beta-style Function. Functions created from this
-template won't work with Crossplane v1.13 or earlier - it targets the
-[implementation of Functions][function-pr] coming with Crossplane v1.14 in late
-October.
-
-Keep in mind what is shown here is __far from the final developer experience__
-we want for Functions! This is the very first iteration - we have to start
-somewhere. We want your feedback - what do you want to see from the developer
-experience? Please [raise a Crossplane issue][new-crossplane-issue] with ideas.
-
-Here's an example of a Composition that uses a Composition Function.
+## Example
 
 ```yaml
 apiVersion: apiextensions.crossplane.io/v1
@@ -33,55 +15,37 @@ spec:
     kind: NoSQL
   mode: Pipeline
   pipeline:
-  - step: run-example-function
+  - step: if
     functionRef:
-      name: function-example
+      name: function-if
     input:
       apiVersion: template.fn.crossplane.io/v1beta1
       kind: Input
-      # Add any input fields here!
+      # conditional over the XR spec field
+      if: spec.env == dev
+      # Arbitrary YAML stream of MRs that will be composed
+      # in case conditional is true
+      then: |
+        ---
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        spec:
+          forProvider:
+            region: us-east-2
+        ---
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: VPC
+        spec:
+          forProvider:
+            region: eu-central-1
 ```
 
-Notice that it has a `pipeline` (of Composition Functions) instead of an array
-of `resources`.
-
-## Developing a Function
-
-This template doesn't use the typical Crossplane build submodule and Makefile,
-since we'd like Functions to have a less heavyweight developer experience.
-It mostly relies on regular old Go tools:
-
-```shell
-# Run code generation - see input/generate.go
-$ go generate ./...
-
-# Run tests
-$ go test -cover ./...
-?       github.com/crossplane/function-if/input/v1beta1      [no test files]
-ok      github.com/crossplane/function-if    0.006s  coverage: 25.8% of statements
-
-# Lint the code
-$ docker run --rm -v $(pwd):/app -v ~/.cache/golangci-lint/v1.54.2:/root/.cache -w /app golangci/golangci-lint:v1.54.2 golangci-lint run
-
-# Build a Docker image - see Dockerfile
-$ docker build .
-```
-
-This Function can be pushed to any Docker registry. To push to xpkg.upbound.io
-use `docker push` and `docker-credential-up` from
-https://github.com/upbound/up/.
-
-To turn this template into a working Function, the process is:
-
-1. Replace `function-template-go` with your Function's name in
-   `package/crossplane.yaml`, `go.mod`, and any Go imports
-1. Update `input/v1beta1/input.go` to reflect your desired input
-1. Run `go generate ./...`
-1. Add your Function logic to `RunFunction` in `fn.go`
-1. Add tests for your Function logic in `fn_test.go`
-1. Update this file, `README.md`, to be about your Function!
 
 ## Testing a Function
+
+```
+xrender examples/xr.yaml examples/composition.yaml examples/functions-dev.yaml
+```
 
 You can try your function out locally using [`xrender`][xrender]. With `xrender`
 you can run a Function pipeline on your laptop.
