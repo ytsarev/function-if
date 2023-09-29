@@ -1,0 +1,6 @@
+apiVersion: nopexample.org/v1
+kind: XResource
+metadata:
+  name: test-resource
+spec:
+  env: dev
