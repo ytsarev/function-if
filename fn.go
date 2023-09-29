@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/antonmedv/expr"
 
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -54,18 +55,22 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1beta1.RunFunctionRequ
 		response.Fatal(rsp, errors.Wrapf(err, "cannot get observed XR from %T", req))
 		return rsp, nil
 	}
-	split := strings.Split(in.If, "==")
-	field := strings.TrimSpace(split[0])
-	value := strings.TrimSpace(split[1])
-	// Read the field value from specific in input.if from our observed XR. We don't have
-	// a struct for the XR, so we use an unstructured, fieldpath based getter.
-	fieldValue, err := oxr.Resource.GetString(field)
-	oxr, err = request.GetObservedCompositeResource(req)
+	condition, err := expr.Compile(in.Condition.Expr, expr.Env(oxr.Resource.Object), expr.AsBool())
 	if err != nil {
-		response.Fatal(rsp, errors.Wrap(err, "cannot get desired spec field from observed XR"))
+		response.Fatal(rsp, errors.Wrap(err, "condition has bad expression"))
 		return rsp, nil
 	}
-
+	result, err := expr.Run(condition, oxr.Resource.Object)
+	if err != nil {
+		response.Fatal(rsp, errors.Wrap(err, "expression error"))
+		return rsp, nil
+	}
+	if r, ok := result.(bool); !ok {
+		response.Fatal(rsp, fmt.Errorf("%#v is not a Boolean", result))
+		return rsp, nil
+	} else if !r { // if did not succeed, return resource unmodified
+		return rsp, nil
+	}
 	// Get any existing desired composed resources from the request.
 	// Desired composed resources would exist if a previous Function in the
 	// pipeline added them.
@@ -74,23 +79,27 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1beta1.RunFunctionRequ
 		response.Fatal(rsp, errors.Wrapf(err, "cannot get desired composed resources from %T", req))
 		return rsp, nil
 	}
-
-	if fieldValue == value {
-		resourcesYamlStream := strings.Split(in.Then, "---")
-		resourcesYamlStream = resourcesYamlStream[1:] // remove empty first element
-		for i, resourceYaml := range resourcesYamlStream {
-			composed := composed.New()
-			yaml.Unmarshal([]byte(resourceYaml), composed)
-			desired[resource.Name(fmt.Sprintf("resource-from-if-%d", i))] = &resource.DesiredComposed{Resource: composed}
+	for i, r := range in.Resources {
+		var name string
+		if r.Name == nil {
+			name = fmt.Sprintf("resource-%d", i)
+		} else {
+			name = *r.Name
 		}
-		for _, r := range desired {
-			r.Resource.SetLabels(map[string]string{"coolness": "high"})
-		}
-		// Set our updated desired composed resource in the response we'll return.
-		if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
-			response.Fatal(rsp, errors.Wrapf(err, "cannot set desired composed resources in %T", rsp))
+		composed := composed.New()
+		if err := yaml.Unmarshal(r.Base.Raw, composed); err != nil {
+			response.Fatal(rsp, errors.Wrapf(err, "cannot get desired compose resource %q", *r.Name))
 			return rsp, nil
 		}
+		desired[resource.Name(name)] = &resource.DesiredComposed{Resource: composed}
+	}
+	for _, r := range desired {
+		r.Resource.SetLabels(map[string]string{"coolness": "superb"})
+	}
+	// Set our updated desired composed resource in the response we'll return.
+	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
+		response.Fatal(rsp, errors.Wrapf(err, "cannot set desired composed resources in %T", rsp))
+		return rsp, nil
 	}
 
 	return rsp, nil

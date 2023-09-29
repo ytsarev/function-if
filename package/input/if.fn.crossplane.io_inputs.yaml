@@ -26,8 +26,14 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          if:
-            type: string
+          condition:
+            description: ConditionSpec defines the condition for rendering.
+            properties:
+              expr:
+                type: string
+            required:
+            - expr
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -35,11 +41,31 @@ spec:
             type: string
           metadata:
             type: object
-          then:
-            type: string
+          resources:
+            items:
+              properties:
+                base:
+                  description: Base is the target resource that the patches will be
+                    applied on.
+                  type: object
+                  x-kubernetes-embedded-resource: true
+                  x-kubernetes-preserve-unknown-fields: true
+                name:
+                  description: A Name uniquely identifies this entry within its Composition's
+                    resources array. Names are optional but *strongly* recommended.
+                    When all entries in the resources array are named entries may
+                    added, deleted, and reordered as long as their names do not change.
+                    When entries are not named the length and order of the resources
+                    array should be treated as immutable. Either all or no entries
+                    must be named.
+                  type: string
+              required:
+              - base
+              type: object
+            type: array
         required:
-        - if
-        - then
+        - condition
+        - resources
         type: object
     served: true
     storage: true
