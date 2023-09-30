@@ -1,6 +1,6 @@
 # function-if
 
-A simple [Crossplane] Composition Function implementing If conditional
+A simple [Crossplane] Composition Function implementing If conditional using [expr](https://github.com/antonmedv/expr).
 
 ## Example
 
@@ -22,22 +22,23 @@ spec:
       apiVersion: template.fn.crossplane.io/v1beta1
       kind: Input
       # conditional over the XR spec field
-      if: spec.env == dev
-      # Arbitrary YAML stream of MRs that will be composed
-      # in case conditional is true
-      then: |
-        ---
-        apiVersion: s3.aws.upbound.io/v1beta1
-        kind: Bucket
-        spec:
-          forProvider:
-            region: us-east-2
-        ---
-        apiVersion: s3.aws.upbound.io/v1beta1
-        kind: VPC
-        spec:
-          forProvider:
-            region: eu-central-1
+      condition:
+        expr: spec.env == "dev"
+      resources:
+        - name: bucket
+          base:
+            apiVersion: s3.aws.upbound.io/v1beta1
+            kind: Bucket
+            spec:
+              forProvider:
+                region: us-east-2
+        - name: vpc
+          base:
+            apiVersion: s3.aws.upbound.io/v1beta1
+            kind: VPC
+            spec:
+              forProvider:
+                region: eu-central-1
 ```
 
 

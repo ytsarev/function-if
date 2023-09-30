@@ -6,6 +6,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 // This isn't a custom resource, in the sense that we never install its CRD.
@@ -13,6 +14,27 @@ import (
 
 // TODO: Add your input type here! It doesn't need to be called 'Input', you can
 // rename it to anything you like.
+
+// ConditionSpec defines the condition for rendering.
+type ConditionSpec struct {
+	Expr string `json:"expr"`
+}
+
+type ResourceSpec struct {
+	// A Name uniquely identifies this entry within its Composition's resources
+	// array. Names are optional but *strongly* recommended. When all entries in
+	// the resources array are named entries may added, deleted, and reordered
+	// as long as their names do not change. When entries are not named the
+	// length and order of the resources array should be treated as immutable.
+	// Either all or no entries must be named.
+	// +optional
+	Name *string `json:"name,omitempty"`
+
+	// Base is the target resource that the patches will be applied on.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:EmbeddedResource
+	Base runtime.RawExtension `json:"base"`
+}
 
 // Input can be used to provide input to this Function.
 // +kubebuilder:object:root=true
@@ -22,6 +44,6 @@ type Input struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	If   string `json:"if"`
-	Then string `json:"then"`
+	Condition ConditionSpec  `json:"condition"`
+	Resources []ResourceSpec `json:"resources"`
 }
